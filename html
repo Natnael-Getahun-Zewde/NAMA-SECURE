@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SENTINEL — Autonomous Perimeter Security Network</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0B0F10;
+    --panel:#11171A;
+    --panel2:#161D20;
+    --line:#232C2F;
+    --text:#E7ECEC;
+    --muted:#6B7680;
+    --teal:#2DD4BF;
+    --amber:#F2B84B;
+    --red:#E5484D;
+    --green:#5FD17A;
+    --blue:#5AA9E6;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
+    font-family:'IBM Plex Mono','Consolas',monospace;overflow:hidden;height:100%;}
+  .app{display:grid;grid-template-columns:1fr 360px;grid-template-rows:64px 1fr;height:100vh;}
+
+  /* Header */
+  header{grid-column:1/3;display:flex;align-items:center;justify-content:space-between;
+    padding:0 22px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,#0E1314,#0B0F10);}
+  .brand{display:flex;align-items:center;gap:12px;}
+  .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--teal);box-shadow:0 0 10px var(--teal);
+    animation:pulse 2s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+  .brand h1{font-family:'Space Grotesk','Segoe UI',sans-serif;font-size:17px;letter-spacing:2px;
+    margin:0;font-weight:600;color:var(--text);}
+  .brand small{display:block;color:var(--muted);font-size:10px;letter-spacing:1.5px;margin-top:2px;}
+  .clock{color:var(--muted);font-size:12px;letter-spacing:1px;}
+
+  /* Main canvas area */
+  .field-wrap{position:relative;border-right:1px solid var(--line);}
+  #field{display:block;background:
+    radial-gradient(circle at 50% 50%, #0D1213 0%, #0A0E0F 70%);}
+
+  .field-hud{position:absolute;top:14px;left:14px;font-size:11px;color:var(--muted);letter-spacing:1px;
+    background:rgba(11,15,16,0.55);padding:8px 12px;border:1px solid var(--line);border-radius:6px;
+    backdrop-filter:blur(2px);}
+  .field-hud span{color:var(--teal);}
+
+  .legend{position:absolute;bottom:14px;left:14px;font-size:10.5px;color:var(--muted);
+    background:rgba(11,15,16,0.55);padding:8px 12px;border:1px solid var(--line);border-radius:6px;
+    display:flex;gap:14px;}
+  .legend .sw{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:middle;}
+
+  /* Side panel */
+  .side{display:flex;flex-direction:column;background:var(--panel);overflow:hidden;}
+  .section{border-bottom:1px solid var(--line);padding:14px 16px;}
+  .section h2{font-family:'Space Grotesk',sans-serif;font-size:11px;letter-spacing:2px;color:var(--muted);
+    margin:0 0 10px 0;text-transform:uppercase;}
+
+  /* Drone fleet status */
+  .drone-row{display:flex;justify-content:space-between;align-items:center;
+    padding:8px 10px;background:var(--panel2);border:1px solid var(--line);border-radius:6px;margin-bottom:8px;}
+  .drone-row:last-child{margin-bottom:0;}
+  .drone-id{font-size:12px;font-weight:600;}
+  .drone-state{font-size:10.5px;padding:3px 8px;border-radius:10px;letter-spacing:0.5px;}
+  .st-ACTIVE{background:rgba(95,209,122,0.15);color:var(--green);}
+  .st-LOW_BATTERY{background:rgba(242,184,75,0.15);color:var(--amber);}
+  .st-LAUNCHING{background:rgba(90,169,230,0.15);color:var(--blue);}
+  .st-CHARGING{background:rgba(107,118,128,0.2);color:var(--muted);}
+  .battery-bar{width:60px;height:5px;background:var(--line);border-radius:3px;overflow:hidden;margin-top:5px;}
+  .battery-fill{height:100%;border-radius:3px;transition:width .3s linear;}
+
+  /* Alert log */
+  .log-wrap{flex:1;overflow-y:auto;padding:10px 16px;}
+  .log-entry{padding:10px;margin-bottom:8px;border-radius:6px;border:1px solid var(--line);
+    background:var(--panel2);font-size:11.5px;animation:slidein .25s ease-out;}
+  @keyframes slidein{from{opacity:0;transform:translateY(-6px);}to{opacity:1;transform:translateY(0);}}
+  .log-entry.alert{border-color:rgba(229,72,77,0.4);background:rgba(229,72,77,0.06);}
+  .log-entry.friendly{border-color:rgba(95,209,122,0.25);opacity:.75;}
+  .log-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;}
+  .log-id{font-weight:600;color:var(--text);}
+  .log-time{color:var(--muted);font-size:10px;}
+  .tag{display:inline-block;font-size:9.5px;letter-spacing:0.5px;padding:2px 7px;border-radius:8px;
+    text-transform:uppercase;margin-right:5px;}
+  .tag-unauth{background:rgba(229,72,77,0.18);color:var(--red);}
+  .tag-auth{background:rgba(95,209,122,0.18);color:var(--green);}
+  .tag-behavior{background:rgba(45,212,191,0.15);color:var(--teal);}
+  .log-actions{display:flex;gap:6px;margin-top:8px;}
+  .btn{flex:1;border:1px solid var(--line);background:var(--panel);color:var(--text);
+    font-family:inherit;font-size:10.5px;letter-spacing:0.5px;padding:6px 0;border-radius:5px;cursor:pointer;
+    transition:.15s;}
+  .btn:hover{border-color:var(--teal);color:var(--teal);}
+  .btn.track{border-color:rgba(45,212,191,0.4);}
+  .btn.bypass{border-color:rgba(107,118,128,0.4);}
+  .btn:disabled{opacity:.4;cursor:default;}
+  .log-empty{color:var(--muted);font-size:11.5px;text-align:center;padding:30px 10px;}
+
+  /* identity ticker */
+  .ticker{font-size:10.5px;color:var(--muted);padding:10px 16px;border-top:1px solid var(--line);
+    background:var(--panel2);}
+  .ticker b{color:var(--teal);}
+  .ok{color:var(--green);}
+  .fail{color:var(--red);}
+
+  ::-webkit-scrollbar{width:6px;}
+  ::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px;}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header>
+    <div class="brand">
+      <div class="dot"></div>
+      <div>
+        <h1>SENTINEL</h1>
+        <small>AI-DRIVEN MULTI-DRONE PERIMETER SECURITY NETWORK — SIMULATION MODE</small>
+      </div>
+    </div>
+    <div class="clock" id="clock">--:--:--</div>
+  </header>
+
+  <div class="field-wrap">
+    <canvas id="field"></canvas>
+    <div class="field-hud">ZONE: <span id="zoneLabel">A-1</span> · TRACKED OBJECTS: <span id="objCount">0</span> · MODE: <span id="modeLabel">PATROL</span></div>
+    <div class="legend">
+      <span><span class="sw" style="background:#5FD17A"></span>Authorized</span>
+      <span><span class="sw" style="background:#E5484D"></span>Unauthorized</span>
+      <span><span class="sw" style="background:#2DD4BF"></span>Patrol drone</span>
+    </div>
+  </div>
+
+  <div class="side">
+    <div class="section">
+      <h2>Drone fleet — shift status</h2>
+      <div id="fleetStatus"></div>
+    </div>
+
+    <div class="section" style="flex:0 0 auto;">
+      <h2>Live alerts</h2>
+    </div>
+    <div class="log-wrap" id="logWrap">
+      <div class="log-empty">No alerts yet. Monitoring zone…</div>
+    </div>
+
+    <div class="ticker" id="ticker">SYSTEM ONLINE — awaiting activity…</div>
+  </div>
+</div>
+
+<script>
+/* ===================== CONFIG ===================== */
+const W_ASPECT = 0.74; // canvas sizing relative to wrapper
+const ZONE_MARGIN = 40;
+const LOITER_RADIUS = 26;
+const LOITER_TIME = 2200;       // ms inside small radius -> loitering
+const SWEEP_REVERSALS = 3;      // direction reversals -> scanning sweep
+const DIRECTNESS_THRESHOLD = 0.82;
+const HANDOFF_MARGIN = 30;
+
+const canvas = document.getElementById('field');
+const ctx = canvas.getContext('2d');
+const fieldWrap = document.querySelector('.field-wrap');
+
+let W, H, zonePoly;
+
+function resize(){
+  W = fieldWrap.clientWidth;
+  H = fieldWrap.clientHeight;
+  canvas.width = W; canvas.height = H;
+  zonePoly = [
+    {x:ZONE_MARGIN, y:ZONE_MARGIN},
+    {x:W-ZONE_MARGIN, y:ZONE_MARGIN},
+    {x:W-ZONE_MARGIN, y:H-ZONE_MARGIN},
+    {x:ZONE_MARGIN, y:H-ZONE_MARGIN}
+  ];
+}
+window.addEventListener('resize', resize);
+
+/* ===================== AUTH KEY REGISTRY (simulated) ===================== */
+// Simulated public-key registry. Each "authorized" object carries a matching key id.
+const KEY_REGISTRY = ["DRN-7F2A", "DRN-91C4", "DRN-5B0E"];
+
+function signedChallengeResponse(obj){
+  // Simulated cryptographic handshake: authorized objects carry a valid key id,
+  // unauthorized ones carry none / an unregistered id.
+  if(obj.keyId && KEY_REGISTRY.includes(obj.keyId)){
+    return {ok:true, id:obj.keyId};
+  }
+  return {ok:false, id:null};
+}
+
+/* ===================== PATROL DRONES (lawnmower path) ===================== */
+function buildLawnmowerPath(poly, stripGap){
+  const minX = poly[0].x, maxX = poly[1].x, minY = poly[0].y, maxY = poly[2].y;
+  const path = [];
+  let y = minY + 20, dir = 1;
+  while(y < maxY - 10){
+    if(dir === 1){ path.push({x:minX+10,y}); path.push({x:maxX-10,y}); }
+    else { path.push({x:maxX-10,y}); path.push({x:minX+10,y}); }
+    y += stripGap; dir *= -1;
+  }
+  return path;
+}
+
+class PatrolDrone{
+  constructor(id, color, battery){
+    this.id = id; this.color = color;
+    this.battery = battery;
+    this.state = battery > 30 ? "ACTIVE" : "LOW_BATTERY";
+    this.path = []; this.pathIdx = 0;
+    this.pos = {x:60,y:60};
+    this.dockPos = {x:60,y:60};
+    this.partner = null;
+  }
+  setPath(path){ this.path = path; this.pathIdx = 0; if(path.length){ this.pos = {...path[0]}; } }
+  step(dt){
+    if(this.state === "CHARGING"){
+      this.battery = Math.min(100, this.battery + dt*0.02);
+      if(this.battery > 95) { this.state = "ACTIVE"; this.pos = {...this.dockPos}; this.pathIdx = 0; }
+      return;
+    }
+    if(this.state === "LAUNCHING"){
+      this.battery -= dt*0.0015;
+      this.state = "ACTIVE";
+      return;
+    }
+    if(this.path.length < 2) return;
+    // drain battery while flying
+    this.battery -= dt*0.0015;
+    if(this.battery <= 28 && this.state === "ACTIVE"){
+      this.state = "LOW_BATTERY";
+      requestRelief(this);
+    }
+    if(this.battery <= 8 && this.state !== "CHARGING"){
+      this.state = "CHARGING";
+      log(`${this.id} returning to dock — battery critical`, "friendly");
+      return;
+    }
+    const target = this.path[(this.pathIdx+1) % this.path.length];
+    const dx = target.x - this.pos.x, dy = target.y - this.pos.y;
+    const dist = Math.hypot(dx,dy);
+    const speed = 0.05 * dt;
+    if(dist < speed){
+      this.pos = {...target};
+      this.pathIdx = (this.pathIdx+1) % this.path.length;
+    } else {
+      this.pos.x += dx/dist*speed;
+      this.pos.y += dy/dist*speed;
+    }
+  }
+}
+
+function requestRelief(drone){
+  if(drone.partner && drone.partner.state === "CHARGING"){
+    drone.partner.state = "LAUNCHING";
+    log(`${drone.id} low battery — ${drone.partner.id} launching for handoff`, "friendly");
+  }
+}
+
+/* ===================== TRACKED OBJECTS ===================== */
+let objId = 1;
+class TrackedObject{
+  constructor(authorized){
+    this.id = "OBJ-" + String(objId++).padStart(3,"0");
+    this.authorized = authorized;
+    this.keyId = authorized ? KEY_REGISTRY[Math.floor(Math.random()*KEY_REGISTRY.length)] : null;
+    const edge = Math.floor(Math.random()*4);
+    const m = ZONE_MARGIN+10;
+    if(edge===0) this.pos = {x:m, y:m+Math.random()*(H-2*m)};
+    else if(edge===1) this.pos = {x:W-m, y:m+Math.random()*(H-2*m)};
+    else if(edge===2) this.pos = {x:m+Math.random()*(W-2*m), y:m};
+    else this.pos = {x:m+Math.random()*(W-2*m), y:H-m};
+    this.heading = Math.random()*Math.PI*2;
+    this.behaviorMode = authorized ? "direct" : ["loiter","sweep","direct"][Math.floor(Math.random()*3)];
+    this.trail = [];
+    this.spawnTime = performance.now();
+    this.lastTurn = performance.now();
+    this.reversals = 0;
+    this.flagged = false;
+    this.verdict = null; // 'pending' | 'authorized' | 'unauthorized'
+    this.opDecision = null; // 'track' | 'bypass'
+    this.dwellStart = performance.now();
+    this.dwellCenter = {...this.pos};
+    this.alive = true;
+    this.t = 0;
+  }
+  step(dt){
+    this.t += dt;
+    if(this.behaviorMode === "loiter"){
+      // small orbiting motion around dwellCenter
+      const r = LOITER_RADIUS;
+      const ang = this.t*0.0012;
+      this.pos.x = this.dwellCenter.x + Math.cos(ang)*r*0.4;
+      this.pos.y = this.dwellCenter.y + Math.sin(ang)*r*0.4;
+    } else if(this.behaviorMode === "sweep"){
+      this.pos.x += Math.cos(this.heading)*0.045*dt;
+      this.pos.y += Math.sin(this.heading)*0.045*dt;
+      if(performance.now() - this.lastTurn > 900){
+        this.heading += (Math.random()>0.5? 1:-1) * (Math.PI*0.6 + Math.random()*0.4);
+        this.lastTurn = performance.now();
+        this.reversals++;
+      }
+    } else {
+      this.pos.x += Math.cos(this.heading)*0.06*dt;
+      this.pos.y += Math.sin(this.heading)*0.06*dt;
+    }
+    this.trail.push({...this.pos});
+    if(this.trail.length > 60) this.trail.shift();
+
+    // out of bounds -> despawn
+    if(this.pos.x < 0 || this.pos.x > W || this.pos.y < 0 || this.pos.y > H){
+      this.alive = false;
+    }
+  }
+  classifyBehavior(){
+    if(this.trail.length < 8) return null;
+    const first = this.trail[0], last = this.trail[this.trail.length-1];
+    const displacement = Math.hypot(last.x-first.x, last.y-first.y);
+    let pathLen = 0;
+    for(let i=1;i<this.trail.length;i++){
+      pathLen += Math.hypot(this.trail[i].x-this.trail[i-1].x, this.trail[i].y-this.trail[i-1].y);
+    }
+    const dwell = performance.now() - this.spawnTime;
+    if(dwell > LOITER_TIME && displacement < LOITER_RADIUS*1.4) return "Loitering";
+    if(this.reversals >= SWEEP_REVERSALS) return "Scanning sweep";
+    if(pathLen > 0 && displacement/pathLen > DIRECTNESS_THRESHOLD) return "Direct path";
+    return "Hovering";
+  }
+}
+
+/* ===================== LOG / ALERTS ===================== */
+const logWrap = document.getElementById('logWrap');
+let logEntries = [];
+function timeStr(){
+  const d = new Date();
+  return d.toLocaleTimeString();
+}
+function log(msg, kind){
+  const empty = logWrap.querySelector('.log-empty');
+  if(empty) empty.remove();
+  const div = document.createElement('div');
+  div.className = "log-entry " + (kind==="alert"?"alert":"friendly");
+  div.innerHTML = `<div class="log-head"><span class="log-id">${msg}</span><span class="log-time">${timeStr()}</span></div>`;
+  logWrap.prepend(div);
+  while(logWrap.children.length > 40) logWrap.removeChild(logWrap.lastChild);
+}
+
+function alertEntry(obj, behavior){
+  const empty = logWrap.querySelector('.log-empty');
+  if(empty) empty.remove();
+  const div = document.createElement('div');
+  div.className = "log-entry alert";
+  div.id = "log-"+obj.id;
+  div.innerHTML = `
+    <div class="log-head"><span class="log-id">${obj.id}</span><span class="log-time">${timeStr()}</span></div>
+    <div><span class="tag tag-unauth">unverified</span><span class="tag tag-behavior">${behavior}</span></div>
+    <div class="log-actions">
+      <button class="btn track" data-id="${obj.id}" data-act="track">▶ Track / Pinpoint</button>
+      <button class="btn bypass" data-id="${obj.id}" data-act="bypass">✕ Bypass</button>
+    </div>`;
+  logWrap.prepend(div);
+  div.querySelectorAll('button').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      const o = objects.find(x=>x.id===obj.id);
+      if(o){ o.opDecision = b.dataset.act; }
+      div.querySelectorAll('button').forEach(x=>x.disabled = true);
+      const decided = document.createElement('div');
+      decided.style.marginTop = "6px";
+      decided.style.fontSize = "10.5px";
+      decided.style.color = b.dataset.act === "track" ? "var(--teal)" : "var(--muted)";
+      decided.textContent = b.dataset.act === "track" ? "→ Pinpointed. Live position relayed to operator." : "→ Bypassed. Logged as non-threat.";
+      div.appendChild(decided);
+    });
+  });
+}
+
+function friendlyEntry(obj){
+  const div = document.createElement('div');
+  div.className = "log-entry friendly";
+  div.innerHTML = `<div class="log-head"><span class="log-id">${obj.id}</span><span class="log-time">${timeStr()}</span></div>
+    <div><span class="tag tag-auth">authorized</span> key ${obj.keyId} verified</div>`;
+  logWrap.prepend(div);
+}
+
+/* ===================== FLEET STATUS UI ===================== */
+const fleetStatusEl = document.getElementById('fleetStatus');
+function renderFleet(drones){
+  fleetStatusEl.innerHTML = drones.map(d => `
+    <div class="drone-row">
+      <div>
+        <div class="drone-id" style="color:${d.color}">${d.id}</div>
+        <div class="battery-bar"><div class="battery-fill" style="width:${Math.max(0,d.battery)}%;
+          background:${d.battery<30? 'var(--amber)':'var(--green)'}"></div></div>
+      </div>
+      <div class="drone-state st-${d.state}">${d.state.replace('_',' ')}</div>
+    </div>
+  `).join('');
+}
+
+/* ===================== TICKER ===================== */
+const ticker = document.getElementById('ticker');
+function setTicker(html){ ticker.innerHTML = html; }
+
+/* ===================== INIT ===================== */
+resize();
+const droneA = new PatrolDrone("PD-A1", "#2DD4BF", 80);
+const droneB = new PatrolDrone("PD-B1", "#5AA9E6", 0);
+droneB.state = "CHARGING";
+droneA.partner = droneB; droneB.partner = droneA;
+
+function rebuildPaths(){
+  const path = buildLawnmowerPath(zonePoly, 46);
+  droneA.setPath(path);
+  droneB.dockPos = {x: zonePoly[1].x-20, y: zonePoly[1].y+20};
+  if(droneB.state !== "CHARGING") droneB.setPath(path);
+}
+rebuildPaths();
+window.addEventListener('resize', rebuildPaths);
+
+let objects = [];
+let spawnTimer = 0;
+let nextSpawnIn = 1800;
+
+/* ===================== DRAW ===================== */
+function drawZone(){
+  ctx.save();
+  ctx.beginPath();
+  zonePoly.forEach((p,i)=> i===0? ctx.moveTo(p.x,p.y): ctx.lineTo(p.x,p.y));
+  ctx.closePath();
+  ctx.strokeStyle = "rgba(45,212,191,0.35)";
+  ctx.setLineDash([6,5]);
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.setLineDash([]);
+  // grid
+  ctx.strokeStyle = "rgba(255,255,255,0.025)";
+  ctx.lineWidth = 1;
+  for(let x=0;x<W;x+=28){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+  for(let y=0;y<H;y+=28){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+  ctx.restore();
+}
+
+function drawDrone(d){
+  if(d.state === "CHARGING") return;
+  ctx.save();
+  ctx.translate(d.pos.x, d.pos.y);
+  // scan radius
+  ctx.beginPath();
+  ctx.arc(0,0,46,0,Math.PI*2);
+  ctx.fillStyle = d.color.replace(")", ",0.05)").replace("rgb","rgba");
+  ctx.strokeStyle = d.color + "55";
+  ctx.fillStyle = "rgba(45,212,191,0.04)";
+  ctx.fill();
+  ctx.stroke();
+  // body
+  ctx.beginPath();
+  ctx.arc(0,0,7,0,Math.PI*2);
+  ctx.fillStyle = d.color;
+  ctx.shadowColor = d.color;
+  ctx.shadowBlur = 12;
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.font = "10px IBM Plex Mono";
+  ctx.fillStyle = d.color;
+  ctx.textAlign = "center";
+  ctx.fillText(d.id, 0, -16);
+  ctx.restore();
+}
+
+function drawObject(o, behavior){
+  // trail
+  ctx.beginPath();
+  o.trail.forEach((p,i)=> i===0? ctx.moveTo(p.x,p.y): ctx.lineTo(p.x,p.y));
+  ctx.strokeStyle = o.flagged ? "rgba(229,72,77,0.5)" : "rgba(95,209,122,0.35)";
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  ctx.save();
+  ctx.translate(o.pos.x, o.pos.y);
+  const color = o.authorized ? "#5FD17A" : "#E5484D";
+  ctx.beginPath();
+  ctx.arc(0,0,6,0,Math.PI*2);
+  ctx.fillStyle = color;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = o.flagged ? 14 : 6;
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  if(o.flagged){
+    ctx.beginPath();
+    ctx.arc(0,0,12,0,Math.PI*2);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+  ctx.font = "9.5px IBM Plex Mono";
+  ctx.fillStyle = color;
+  ctx.textAlign = "center";
+  ctx.fillText(o.id, 0, -16);
+  if(behavior){
+    ctx.fillStyle = "#9FB0B3";
+    ctx.fillText(behavior, 0, 22);
+  }
+  ctx.restore();
+}
+
+/* ===================== MAIN LOOP ===================== */
+let lastTime = performance.now();
+function loop(now){
+  const dt = Math.min(now - lastTime, 50);
+  lastTime = now;
+
+  // spawn objects
+  spawnTimer += dt;
+  if(spawnTimer > nextSpawnIn){
+    spawnTimer = 0;
+    nextSpawnIn = 2600 + Math.random()*2200;
+    const authorized = Math.random() < 0.45;
+    objects.push(new TrackedObject(authorized));
+  }
+
+  droneA.step(dt);
+  droneB.step(dt);
+
+  ctx.clearRect(0,0,W,H);
+  drawZone();
+
+  objects.forEach(o=>{
+    o.step(dt);
+    const behavior = o.classifyBehavior();
+
+    if(o.verdict === null){
+      const result = signedChallengeResponse(o);
+      if(result.ok){
+        o.verdict = "authorized";
+        friendlyEntry(o);
+        setTicker(`Handshake <b>${o.id}</b> → key <b>${result.id}</b> <span class="ok">VERIFIED</span> — no alert raised`);
+      } else {
+        o.verdict = "pending-unauth";
+        setTicker(`Handshake <b>${o.id}</b> → no valid signature <span class="fail">UNVERIFIED</span>`);
+      }
+    }
+
+    if(o.verdict === "pending-unauth" && behavior && !o.flagged){
+      o.flagged = true;
+      alertEntry(o, behavior);
+      setTicker(`<span class="fail">ALERT</span> ${o.id} flagged — behavior: <b>${behavior}</b>`);
+    }
+
+    drawObject(o, behavior);
+  });
+  objects = objects.filter(o=>o.alive);
+
+  drawDrone(droneA);
+  drawDrone(droneB);
+
+  document.getElementById('objCount').textContent = objects.length;
+  document.getElementById('modeLabel').textContent =
+    objects.some(o=>o.opDecision==='track') ? "TRACKING" : "PATROL";
+
+  renderFleet([droneA, droneB]);
+
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+/* clock */
+setInterval(()=>{ document.getElementById('clock').textContent = new Date().toLocaleTimeString(); }, 1000);
+</script>
+</body>
+</html>
